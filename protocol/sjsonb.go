@@ -1,7 +1,9 @@
 package protocol
 
 import (
+	"bufio"
 	"encoding/binary"
+	_ "fmt"
 	"io"
 )
 
@@ -15,11 +17,27 @@ type SjsonbHeader struct {
 }
 
 
-func SjsonbDecode(rd io.Reader) (*SjsonbHeader, error) {
+func SjsonbDecode(rd io.Reader, magic uint32) (*SjsonbHeader, error) {
 	var err error
 	var header SjsonbHeader
+	bufRd := bufio.NewReader(rd)
 
-	err = binary.Read(rd, binary.BigEndian, &header)
+	// find magic
+	for {
+		magicBuf, err := bufRd.Peek(4)
+		if err != nil {
+			return nil, err
+		}
+
+		if magic == binary.BigEndian.Uint32(magicBuf) {
+			break
+		}
+
+		bufRd.Discard(1)
+	}
+
+	// decode
+	err = binary.Read(bufRd, binary.BigEndian, &header)
 	if nil != err {
 		return nil, err
 	}
@@ -29,10 +47,10 @@ func SjsonbDecode(rd io.Reader) (*SjsonbHeader, error) {
 
 
 // sjsonb协议编码
-func SjsonbEncode(ver uint32, entype uint16, cargo []byte) []byte {
+func SjsonbEncode(magic, ver uint32, entype uint16, cargo []byte) []byte {
 	rslt := make([]byte, 20 + len(cargo))
 
-	binary.BigEndian.PutUint32(rslt[0:], 0xE78F8A9D)
+	binary.BigEndian.PutUint32(rslt[0:], magic)
 	binary.BigEndian.PutUint32(rslt[4:], ver)
 	binary.BigEndian.PutUint16(rslt[8:], entype)
 	binary.BigEndian.PutUint16(rslt[10:], 20)
